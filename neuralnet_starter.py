@@ -26,6 +26,16 @@ def load_data(fname):
   Write code to read the data and return it as 2 numpy arrays.
   Make sure to convert labels to one hot encoded format.
   """
+  pathname = "data/" + fname
+  data = pickle.load(open(pathname, 'rb'), encoding='latin1')
+  images = np.array([img[:-1] for img in data])
+  ys = [int(img[-1]) for img in data]
+  length = len(ys)
+  labels = np.zeros((length, 10))
+
+  for i in range(length):
+    labels[i, ys[i]] = 1
+
   return images, labels
 
 
@@ -176,8 +186,8 @@ if __name__ == "__main__":
   ### Train the network ###
   model = Neuralnetwork(config)
   X_train, y_train = load_data(train_data_fname)
-  X_valid, y_valid = load_data(valid_data_fname)
-  X_test, y_test = load_data(test_data_fname)
-  trainer(model, X_train, y_train, X_valid, y_valid, config)
-  test_acc = test(model, X_test, y_test, config)
+  # X_valid, y_valid = load_data(valid_data_fname)
+  # X_test, y_test = load_data(test_data_fname)
+  # trainer(model, X_train, y_train, X_valid, y_valid, config)
+  # test_acc = test(model, X_test, y_test, config)
 
