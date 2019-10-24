@@ -3,7 +3,7 @@ import pickle
 
 
 config = {}
-config['layer_specs'] = [784, 100, 100, 10]  # The length of list denotes number of hidden layers; each element denotes number of neurons in that layer; first element is the size of input layer, last element is the size of output layer.
+config['layer_specs'] = [784, 50, 10]  # The length of list denotes number of hidden layers; each element denotes number of neurons in that layer; first element is the size of input layer, last element is the size of output layer.
 config['activation'] = 'sigmoid' # Takes values 'sigmoid', 'tanh' or 'ReLU'; denotes activation function for hidden layers
 config['batch_size'] = 1000  # Number of training samples per batch to be passed to network
 config['epochs'] = 50  # Number of epochs to train the model
@@ -18,6 +18,9 @@ def softmax(x):
   """
   Write the code for softmax activation function that takes in a numpy array and returns a numpy array.
   """
+  num = np.exp(x)
+  den = np.sum(np.exp(x), axis=1)
+  output = (num.T / den).T
   return output
 
 
@@ -71,6 +74,7 @@ class Activation:
     Write the code for sigmoid activation function that takes in a numpy array and returns a numpy array.
     """
     self.x = x
+    output = 1 / (1 + np.exp(-x))
     return output
 
   def tanh(self, x):
@@ -78,6 +82,7 @@ class Activation:
     Write the code for tanh activation function that takes in a numpy array and returns a numpy array.
     """
     self.x = x
+    output = np.tanh(x)
     return output
 
   def ReLU(self, x):
@@ -85,24 +90,28 @@ class Activation:
     Write the code for ReLU activation function that takes in a numpy array and returns a numpy array.
     """
     self.x = x
+    output = np.maximum(0, x)
     return output
 
   def grad_sigmoid(self):
     """
     Write the code for gradient through sigmoid activation function that takes in a numpy array and returns a numpy array.
     """
+    grad = self.sigmoid(self.x)(1 - self.sigmoid(self.x))
     return grad
 
   def grad_tanh(self):
     """
     Write the code for gradient through tanh activation function that takes in a numpy array and returns a numpy array.
     """
+    grad = 1  - self.tanh(self.x) ^ 2
     return grad
 
   def grad_ReLU(self):
     """
     Write the code for gradient through ReLU activation function that takes in a numpy array and returns a numpy array.
     """
+    grad = np.where(self.x > 0, 1, 0)
     return grad
 
 
@@ -122,6 +131,11 @@ class Layer():
     Write the code for forward pass through a layer. Do not apply activation function here.
     """
     self.x = x
+    # add bias
+    x_w_ones = np.append(np.ones([x.shape[0], 1]), x, 1)
+    w_b = np.concatenate((self.b, self.w))
+    self.a = x_w_ones @ w_b
+
     return self.a
   
   def backward_pass(self, delta):
@@ -129,9 +143,8 @@ class Layer():
     Write the code for backward pass. This takes in gradient from its next layer as input,
     computes gradient for its weights and the delta to pass to its previous layers.
     """
-    return self.d_x
-
       
+
 class Neuralnetwork():
   def __init__(self, config):
     self.layers = []
@@ -149,6 +162,16 @@ class Neuralnetwork():
     If targets == None, loss should be None. If not, then return the loss computed.
     """
     self.x = x
+    if targets is None:
+      loss = None
+
+    result = x
+    for layer in self.layers:
+      result = layer.forward_pass(result)
+
+    # softamax activation on input
+    self.y = softmax(result)
+
     return loss, self.y
 
   def loss_func(self, logits, targets):
@@ -169,7 +192,32 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
   Write the code to train the network. Use values from config to set parameters
   such as L2 penalty, number of epochs, momentum, etc.
   """
-  
+  # loop for number of epochs
+  # shuffle inputs based off seed
+  # need to shuffle validation based off same seed
+  # forward prop and get xenloss
+  # backprop and update weights
+  for i in range(1):#config["epochs"]):
+    np.random.seed(i)
+    np.random.shuffle(X_train)
+
+    np.random.seed(i)
+    np.random.shuffle(y_train)
+
+    num_batches = int(X_train.shape[0] / config["batch_size"])
+    k=0
+    for j in range(num_batches):
+      # choose minibatch
+      x = X_train[j * config["batch_size"] : (j+1) * config["batch_size"]]
+      targets = y_train[j * config["batch_size"] : (j+1) * config["batch_size"]]
+      loss, y_pred = model.forward_pass(x)#, targets)
+      k +=1
+      if k < 5:
+        print(targets)
+        print(y_pred)
+        print(np.sum(y_pred, axis=1))
+        print('=============')
+
   
 def test(model, X_test, y_test, config):
   """
@@ -186,9 +234,7 @@ if __name__ == "__main__":
   ### Train the network ###
   model = Neuralnetwork(config)
   X_train, y_train = load_data(train_data_fname)
-  print(X_train.shape, y_train.shape)
-  # X_valid, y_valid = load_data(valid_data_fname)
-  # X_test, y_test = load_data(test_data_fname)
-  # trainer(model, X_train, y_train, X_valid, y_valid, config)
+  X_valid, y_valid = load_data(valid_data_fname)
+  X_test, y_test = load_data(test_data_fname)
+  trainer(model, X_train, y_train, X_valid, y_valid, config)
   # test_acc = test(model, X_test, y_test, config)
-
