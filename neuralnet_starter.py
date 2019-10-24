@@ -162,7 +162,7 @@ class Neuralnetwork():
     If targets == None, loss should be None. If not, then return the loss computed.
     """
     self.x = x
-    if targets == None:
+    if targets is None:
       loss = None
 
     result = x
@@ -204,13 +204,20 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
     np.random.seed(i)
     np.random.shuffle(y_train)
 
-    num_batches = X_train.shape[0] / config["batch_size"]
+    num_batches = int(X_train.shape[0] / config["batch_size"])
+    k=0
     for j in range(num_batches):
       # choose minibatch
-      x = X_train[j * config["batch_size"] : (j+1) * batch_size]
-      targets = y_train[j * config["batch_size"] : (j+1) * batch_size]
-      loss, y_pred = model.forward_pass(x, targets)
-  
+      x = X_train[j * config["batch_size"] : (j+1) * config["batch_size"]]
+      targets = y_train[j * config["batch_size"] : (j+1) * config["batch_size"]]
+      loss, y_pred = model.forward_pass(x)#, targets)
+      k +=1
+      if k < 5:
+        print(targets)
+        print(y_pred)
+        print(np.sum(y_pred, axis=1))
+        print('=============')
+
   
 def test(model, X_test, y_test, config):
   """
