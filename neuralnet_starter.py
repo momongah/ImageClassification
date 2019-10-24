@@ -186,6 +186,7 @@ if __name__ == "__main__":
   ### Train the network ###
   model = Neuralnetwork(config)
   X_train, y_train = load_data(train_data_fname)
+  print(X_train.shape, y_train.shape)
   # X_valid, y_valid = load_data(valid_data_fname)
   # X_test, y_test = load_data(test_data_fname)
   # trainer(model, X_train, y_train, X_valid, y_valid, config)
