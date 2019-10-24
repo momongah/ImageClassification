@@ -18,6 +18,9 @@ def softmax(x):
   """
   Write the code for softmax activation function that takes in a numpy array and returns a numpy array.
   """
+  num = np.exp(x)
+  den = np.sum(np.exp(x), axis=1)
+  output = (num.T / den).T
   return output
 
 
@@ -167,6 +170,7 @@ class Neuralnetwork():
       result = layer.forward_pass(result)
 
     # softamax activation on input
+    self.y = softmax(result)
 
     return loss, self.y
 
@@ -193,6 +197,19 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
   # need to shuffle validation based off same seed
   # forward prop and get xenloss
   # backprop and update weights
+  for i in range(1):#config["epochs"]):
+    np.random.seed(i)
+    np.random.shuffle(X_train)
+
+    np.random.seed(i)
+    np.random.shuffle(y_train)
+
+    num_batches = X_train.shape[0] / config["batch_size"]
+    for j in range(num_batches):
+      # choose minibatch
+      x = X_train[j * config["batch_size"] : (j+1) * batch_size]
+      targets = y_train[j * config["batch_size"] : (j+1) * batch_size]
+      loss, y_pred = model.forward_pass(x, targets)
   
   
 def test(model, X_test, y_test, config):
@@ -211,6 +228,6 @@ if __name__ == "__main__":
   model = Neuralnetwork(config)
   X_train, y_train = load_data(train_data_fname)
   X_valid, y_valid = load_data(valid_data_fname)
-  # X_test, y_test = load_data(test_data_fname)
-  # trainer(model, X_train, y_train, X_valid, y_valid, config)
+  X_test, y_test = load_data(test_data_fname)
+  trainer(model, X_train, y_train, X_valid, y_valid, config)
   # test_acc = test(model, X_test, y_test, config)
