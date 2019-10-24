@@ -25,7 +25,13 @@ print(lst)
 def my_func(a):
     return a / a.sum()
 print(np.sum(lst, axis=1))
-print(np.apply_along_axis(my_func, 1, lst))
+bst = np.apply_along_axis(my_func, 0, lst)
+print(bst)
 
+print(lst - bst)
 
+for i in reversed(lst):
+    print(i)
+
+print(lst)
 

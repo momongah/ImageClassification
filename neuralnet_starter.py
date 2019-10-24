@@ -213,9 +213,9 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
       loss, y_pred = model.forward_pass(x)#, targets)
       k +=1
       if k < 5:
-        print(targets)
-        print(y_pred)
-        print(np.sum(y_pred, axis=1))
+        #print(targets)
+        print(y_pred[0, :])
+        print(y_pred[0, :].sum())
         print('=============')
 
   
