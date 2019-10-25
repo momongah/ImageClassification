@@ -12,7 +12,7 @@ config['early_stop_epoch'] = 5  # Number of epochs for which validation loss inc
 config['L2_penalty'] = 0  # Regularization constant
 config['momentum'] = False  # Denotes if momentum is to be applied or not
 config['momentum_gamma'] = 0.9  # Denotes the constant 'gamma' in momentum expression
-config['learning_rate'] = 0.0001 # Learning rate of gradient descent algorithm
+config['learning_rate'] = 0.0001 # Learning rate of gradient descent algorithm (0.0001 original value)
 
 def softmax(x):
   """
@@ -104,7 +104,7 @@ class Activation:
     """
     Write the code for gradient through tanh activation function that takes in a numpy array and returns a numpy array.
     """
-    grad = 1  - self.tanh(self.x) ^ 2
+    grad = 1  - self.tanh(self.x) ** 2
     return grad
 
   def grad_ReLU(self):
@@ -143,6 +143,10 @@ class Layer():
     Write the code for backward pass. This takes in gradient from its next layer as input,
     computes gradient for its weights and the delta to pass to its previous layers.
     """
+
+    # don't think i accounted for bias, maybe it has a large effect
+
+
     #print(delta.shape)
     self.d_x = delta.T @ self.x
     #print(self.x.shape)
