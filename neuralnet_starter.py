@@ -97,7 +97,7 @@ class Activation:
     """
     Write the code for gradient through sigmoid activation function that takes in a numpy array and returns a numpy array.
     """
-    grad = self.sigmoid(self.x)(1 - self.sigmoid(self.x))
+    grad = self.sigmoid(self.x) * (1 - self.sigmoid(self.x))
     return grad
 
   def grad_tanh(self):
@@ -122,9 +122,9 @@ class Layer():
     self.b = np.zeros((1, out_units)).astype(np.float32)  # Bias
     self.x = None  # Save the input to forward_pass in this
     self.a = None  # Save the output of forward pass in this (without activation)
-    self.d_x = None  # Save the gradient w.r.t x in this
-    self.d_w = None  # Save the gradient w.r.t w in this
-    self.d_b = None  # Save the gradient w.r.t b in this
+    self.d_x = None  # Save the gradient w.r.t x in this || prod of delta & x ???
+    self.d_w = None  # Save the gradient w.r.t w in this || prod of delta & w ???
+    self.d_b = None  # Save the gradient w.r.t b in this || prod of delta & b ???
 
   def forward_pass(self, x):
     """
@@ -143,6 +143,12 @@ class Layer():
     Write the code for backward pass. This takes in gradient from its next layer as input,
     computes gradient for its weights and the delta to pass to its previous layers.
     """
+    #print(delta.shape)
+    self.d_x = delta.T @ self.x
+    #print(self.x.shape)
+    self.d_w = delta @ self.w.T
+    #print(self.w.shape)
+    return self.d_w
       
 
 class Neuralnetwork():
@@ -164,6 +170,10 @@ class Neuralnetwork():
     self.x = x
     if targets is None:
       loss = None
+    else:
+      self.targets = targets
+      loss = self.loss_func(self.y, self.targets)
+
 
     result = x
     for layer in self.layers:
@@ -178,13 +188,24 @@ class Neuralnetwork():
     '''
     find cross entropy loss between logits and targets
     '''
-    return output
+    return 1
     
   def backward_pass(self):
     '''
     implement the backward pass for the whole network. 
     hint - use previously built functions.
     '''
+    #delta of t - y
+    delta = self.targets - self.y
+    for layer in reversed(self.layers):
+      delta = layer.backward_pass(delta)
+
+    #update weights
+    for i in np.arange(0, 3, 2):
+      layer = self.layers[i]
+      layer.w = layer.w + config['learning_rate'] * layer.d_x.T #add learning rate later
+
+
       
 
 def trainer(model, X_train, y_train, X_valid, y_valid, config):
@@ -210,13 +231,15 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
       # choose minibatch
       x = X_train[j * config["batch_size"] : (j+1) * config["batch_size"]]
       targets = y_train[j * config["batch_size"] : (j+1) * config["batch_size"]]
-      loss, y_pred = model.forward_pass(x)#, targets)
+      loss, y_pred = model.forward_pass(x, targets)
+      model.backward_pass()
       k +=1
-      if k < 5:
-        #print(targets)
+      if k < 5 or k > 44:
+        print(targets[0, :])
         print(y_pred[0, :])
         print(y_pred[0, :].sum())
-        print('=============')
+        print(k, '=============')
+
 
   
 def test(model, X_test, y_test, config):

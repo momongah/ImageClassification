@@ -30,7 +30,7 @@ print(bst)
 
 print(lst - bst)
 
-for i in reversed(lst):
+for i in np.arange(0, 3, 2):
     print(i)
 
 print(lst)
