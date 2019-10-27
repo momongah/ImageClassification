@@ -1,5 +1,6 @@
 import numpy as np
 import pickle
+from matplotlib import pyplot as plt
 
 
 config = {}
@@ -8,7 +9,7 @@ config['activation'] = 'sigmoid' # Takes values 'sigmoid', 'tanh' or 'ReLU'; den
 config['batch_size'] = 1000  # Number of training samples per batch to be passed to network
 config['epochs'] = 50  # Number of epochs to train the model
 config['early_stop'] = True  # Implement early stopping or not
-config['early_stop_epoch'] = 5  # Number of epochs for which validation loss increases to be counted as overfitting
+config['early_stop_epoch'] = 3  # Number of epochs for which validation loss increases to be counted as overfitting
 config['L2_penalty'] = 0  # Regularization constant
 config['momentum'] = False  # Denotes if momentum is to be applied or not
 config['momentum_gamma'] = 0.9  # Denotes the constant 'gamma' in momentum expression
@@ -125,6 +126,7 @@ class Layer():
     self.d_x = None  # Save the gradient w.r.t x in this || prod of delta & x ???
     self.d_w = None  # Save the gradient w.r.t w in this || prod of delta & w ???
     self.d_b = None  # Save the gradient w.r.t b in this || prod of delta & b ???
+    self.v = None # save the 'prev' weight change (for momentum)
 
   def forward_pass(self, x):
     """
@@ -135,6 +137,10 @@ class Layer():
     x_w_ones = np.append(np.ones([x.shape[0], 1]), x, 1)
     w_b = np.concatenate((self.b, self.w))
     self.a = x_w_ones @ w_b
+    
+    # print("shape of x: ", x.shape, "shape of x_w_ones: ", x_w_ones.shape)
+    # print("shape of w: ", self.w.shape, "shape of w_b: ", w_b.shape, "shape of bias: ", self.b.shape)
+    # print("shape of a: ", self.a.shape)
 
     return self.a
   
@@ -146,11 +152,21 @@ class Layer():
 
     # don't think i accounted for bias, maybe it has a large effect
 
-
-    #print(delta.shape)
+    # print("shape of delta incoming: ", delta.shape, "shape of x: ", self.x.shape)
     self.d_x = delta.T @ self.x
-    #print(self.x.shape)
+    # print("SHAPE OF GRADIENT: ", self.d_x.shape)
+    
+    # saving 
+    #self.v = delta.T @ self.x
+
+    # backprop for bias weights
+    x_0 = np.ones([len(delta), 1])
+    self.d_b = delta.T @ x_0
+
+    # print("shape of BIAS GRAD: ", self.d_b.shape)
+
     self.d_w = delta @ self.w.T
+    # print("shape of w.T: ", self.w.T.shape, "shape of RETURN delta: ", self.d_w.shape)
     #print(self.w.shape)
     return self.d_w
       
@@ -161,6 +177,7 @@ class Neuralnetwork():
     self.x = None  # Save the input to forward_pass in this
     self.y = None  # Save the output vector of model in this
     self.targets = None  # Save the targets in forward_pass in this variable
+    #self.v = None # 
     for i in range(len(config['layer_specs']) - 1):
       self.layers.append( Layer(config['layer_specs'][i], config['layer_specs'][i+1]) )
       if i < len(config['layer_specs']) - 2:
@@ -176,8 +193,6 @@ class Neuralnetwork():
       loss = None
     else:
       self.targets = targets
-      loss = self.loss_func(self.y, self.targets)
-
 
     result = x
     for layer in self.layers:
@@ -186,19 +201,31 @@ class Neuralnetwork():
     # softamax activation on input
     self.y = softmax(result)
 
+    if targets is not None:
+       loss = self.loss_func(self.y, self.targets)
+
     return loss, self.y
 
   def loss_func(self, logits, targets):
     '''
     find cross entropy loss between logits and targets
     '''
-    return 1
+    prod = targets * np.log(logits)
+    return -1 * np.sum(prod)
     
   def backward_pass(self):
     '''
     implement the backward pass for the whole network. 
     hint - use previously built functions.
     '''
+    a = config['learning_rate']
+    y = config['momentum_gamma']
+    m = config['momentum']
+
+    
+
+
+
     #delta of t - y
     delta = self.targets - self.y
     for layer in reversed(self.layers):
@@ -207,10 +234,16 @@ class Neuralnetwork():
     #update weights
     for i in np.arange(0, 3, 2):
       layer = self.layers[i]
-      layer.w = layer.w + config['learning_rate'] * layer.d_x.T #add learning rate later
+      #first iteration so no 'prev weight change'
+      # if iteration == 0:
+      #   prev_w_chng = np.zeros(layer.d_x.T.shape)
+      layer.w = layer.w + a * layer.d_x.T #+ (y * prev_w_chng) #updating non-bias weights
+      # prev_w_chng = a * layer.d_x.T + (y * prev_w_chng)
+      layer.b = layer.b + a * layer.d_b.T #updating bias weights
 
+      '''(a * layer.d_x.T) + (y * prev_weight_change)''' # is the 'last
+      '''prev_weight_change = (a * layer.d_x.T) + (y * prev_weight_change)'''
 
-      
 
 def trainer(model, X_train, y_train, X_valid, y_valid, config):
   """
@@ -222,12 +255,27 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
   # need to shuffle validation based off same seed
   # forward prop and get xenloss
   # backprop and update weights
-  for i in range(1):#config["epochs"]):
+
+  stop_count = config['early_stop_epoch']
+
+  xnloss = []
+  val_loss = [float('inf')]
+  test_scores = []
+
+
+  #validation loss increase per epoch counter
+  c = 0
+  
+  for i in range(50):#config["epochs"]):
     np.random.seed(i)
     np.random.shuffle(X_train)
 
     np.random.seed(i)
     np.random.shuffle(y_train)
+
+    '''You should average the loss across all mini batches'''
+    #means sum up loss from all mini-batches and divide by num_batches
+    sum = 0
 
     num_batches = int(X_train.shape[0] / config["batch_size"])
     k=0
@@ -236,13 +284,70 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
       x = X_train[j * config["batch_size"] : (j+1) * config["batch_size"]]
       targets = y_train[j * config["batch_size"] : (j+1) * config["batch_size"]]
       loss, y_pred = model.forward_pass(x, targets)
+      loss = loss / (config['batch_size'] * 10)  # 10 classes
+      sum += loss
+      #xnloss.append(loss)
       model.backward_pass()
       k +=1
-      if k < 5 or k > 44:
-        print(targets[0, :])
-        print(y_pred[0, :])
-        print(y_pred[0, :].sum())
-        print(k, '=============')
+      # if k < 5 or k > 44:
+      #   print(targets[0, :])
+      #   print(y_pred[0, :])
+      #   print(y_pred[0, :].sum())
+      #   print(k, '=============')
+
+    # mini-batch done here, take avg of loss
+    avg_loss = sum / num_batches
+    xnloss.append(avg_loss)
+
+    ''' epochs loop continues here
+     0) perform validation and compute its (val) loss
+
+     1) calculate test accuracy for every epoch where the
+     validation loss is better than the previous validation loss.
+     
+     2) Save this result (test score OR loss?) and choose the best 
+     one when you hit the early stopping criteria.
+
+     3) early stopping - stop training (epochs loop) after 5th consecutive 
+    increase in validation loss. (Experiment with diff values).
+    '''
+
+    '''VALIDATION PERFORMACE'''
+    v_loss, v_pred = model.forward_pass(X_valid, y_valid)
+    v_loss_norm = v_loss / (len(X_valid) * 10)
+
+
+    '''TEST ACCURACY''' 
+    #if val loss better (less) than prev: calculate test scores
+    if v_loss_norm < val_loss[i]:
+      '''insert code for test accu here'''
+      val_loss.append(v_loss_norm)
+    else: #else val loss increased, so increment counter
+      print("val loss greater than last time")
+      c += 1
+
+    
+    '''EARLY STOPPING'''
+    if c == stop_count:
+      print("early stopped at epoch =", i+1)
+      break
+
+  #outside of epochs loop
+  plt.plot(xnloss, label='training loss')
+  plt.plot(val_loss[1:], label='validation loss')
+  plt.title("losses across all epochs")
+  plt.xlabel("epochs")
+  plt.ylabel("avg loss for the epoch")
+  plt.legend()
+  # plt.savefig('trainVSval_loss.png')
+  plt.show()
+  #firstplot.png is training loss against # of batches, in 1 epoch
+  #avgacrossepochs.png is avg training loss of all batches, across 50 epochs
+  # both_losses = []
+  # for i in range(len(xnloss)):
+  #   both_losses.append((val_loss[i], xnloss[i]))
+  # print("validation errors: ", [(val_loss[i], xnloss[i]) for i in range(len(xnloss))])
+  
 
 
   
@@ -262,6 +367,9 @@ if __name__ == "__main__":
   model = Neuralnetwork(config)
   X_train, y_train = load_data(train_data_fname)
   X_valid, y_valid = load_data(valid_data_fname)
+  
   X_test, y_test = load_data(test_data_fname)
   trainer(model, X_train, y_train, X_valid, y_valid, config)
   # test_acc = test(model, X_test, y_test, config)
+
+  # print(X_valid.shape, X_train.shape, X_test.shape, y_test.shape)

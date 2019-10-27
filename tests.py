@@ -18,20 +18,35 @@ import numpy as np
 
 # # print(c)
 
-lst = np.array([[i*2,i*2,i*3] for i in range(1,4)])
+lst = np.array([[i, np.random.randint(0,i+1), np.random.randint(i,i+3)] for i in range(1, 5)])
 
-print(lst)
+# print(lst)
 
 def my_func(a):
     return a / a.sum()
 print(np.sum(lst, axis=1))
 bst = np.apply_along_axis(my_func, 0, lst)
-print(bst)
+# print(bst)
 
-print(lst - bst)
+# print(lst - bst)
 
-for i in np.arange(0, 3, 2):
-    print(i)
 
-print(lst)
+
+np.random.seed(3)
+
+logit = np.random.logistic(loc=0.5, scale=0.2, size=(4,3))
+# print(logit)
+
+y = np.around(logit, decimals=1)
+# print(y)
+
+# y = np.array([[i, np.random.randint(0, i+1), np.random.randint(i, i+3)]
+#                 for i in range(1, 5)])
+
+
+t = np.zeros((4,3))
+for i in range(4):
+    t[i, np.random.randint(0,3)] = 1
+
+print((t*y), np.sum(t * y))
 
