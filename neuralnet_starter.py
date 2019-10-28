@@ -7,8 +7,8 @@ config = {}
 config['layer_specs'] = [784, 50, 10]  # The length of list denotes number of hidden layers; each element denotes number of neurons in that layer; first element is the size of input layer, last element is the size of output layer.
 config['activation'] = 'tanh' # Takes values 'sigmoid', 'tanh' or 'ReLU'; denotes activation function for hidden layers
 config['batch_size'] = 1000  # Number of training samples per batch to be passed to network
-config['epochs'] = 50  # Number of epochs to train the model
-config['early_stop'] = False  # Implement early stopping or not
+config['epochs'] = 100  # Number of epochs to train the model
+config['early_stop'] = True  # Implement early stopping or not
 config['early_stop_epoch'] = 3  # Number of epochs for which validation loss increases to be counted as overfitting
 config['L2_penalty'] = 0.0  # Regularization constant
 config['momentum'] = True  # Denotes if momentum is to be applied or not
@@ -347,9 +347,12 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
   val_loss = [float('inf')]
   test_scores = []
 
+  train_accu = []
+  valid_accu = []
+
 
   #validation loss increase per epoch counter
-  c = 0
+  c = -1
   
   for i in range(config["epochs"]):
     np.random.seed(i)
@@ -361,8 +364,6 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
     '''You should average the loss across all mini batches'''
     #means sum up loss from all mini-batches and divide by num_batches
     sums = 0
-
-    compare = False
 
     num_batches = int(X_train.shape[0] / b_size)
     k=0
@@ -406,23 +407,17 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
 
     '''TEST ACCURACY''' 
     #if val loss better (less) than prev: calculate test scores
-    if stop and i == stop_count:
-      compare = True
-      last_n = np.array(val_loss[-stop_count:]) > v_loss_norm
-
-
-
-
-    if compare and v_loss_norm > val_loss[-1]:
-      print("val loss going up from last time")
+    
+    if v_loss_norm > val_loss[-1]:
+      print("val loss going up from last time at epoch i=", i)
       c += 1
+    else:
+      c = 0
       '''insert code for test accu here'''
     #   val_loss.append(v_loss_norm)
     # else: #else val loss increased, so increment counter
       
     val_loss.append(v_loss_norm)
-      
-
     
     '''EARLY STOPPING'''
     if stop and c == stop_count:
@@ -430,7 +425,7 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
       break
 
   print(val_loss[1:3])
-  print(xnloss, len(xnloss), len(val_loss[1:]))
+  print(val_loss, len(xnloss), len(val_loss[1:]))
   #outside of epochs loop
   plt.plot(xnloss, label='training loss')
   plt.plot(val_loss[1:], label='validation loss')
