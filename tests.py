@@ -60,9 +60,9 @@ print(y_1hot)
 print()
 print(np.sum(t * y_1hot))
 
-lst = [50, 40, 30, 20, 10, 8, 6, 4, 2, 1]
+lst = [50, 40, 30, 20, 10, 8, 6, 40, 20, 1]
 
-print(np.array(lst) > 4)
+print(np.all(np.array(lst[-3:]) > 4))
 
 
 

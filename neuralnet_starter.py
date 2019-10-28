@@ -131,9 +131,14 @@ class Layer():
     else:
       e = 0
     np.random.seed(42)
-    self.w = np.random.randn(in_units, out_units) * factor  # Weight matrix
+    # unccomment for 2b, numerical approximation of gradient
+    # if out_units == 10:
+    #   e = -0.1
+    # else:
+    #   e = 0
+    self.w = np.random.randn(in_units, out_units)# Weight matrix
     self.b = np.zeros((1, out_units)).astype(np.float32)  # Bias
-    self.b[0:0] += e
+    # self.w[0, 0] += e
     self.x = None  # Save the input to forward_pass in this
     self.a = None  # Save the output of forward pass in this (without activation)
     self.d_x = None  # Save the gradient w.r.t x in this || prod of delta & x ???
@@ -157,7 +162,7 @@ class Layer():
     # print("shape of x: ", x.shape, "shape of x_w_ones: ", x_w_ones.shape)
     # print("shape of w: ", self.w.shape, "shape of w_b: ", w_b.shape, "shape of bias: ", self.b.shape)
     # print("shape of a: ", self.a.shape)
-
+    
     return self.a
   
   def backward_pass(self, delta):
@@ -253,7 +258,7 @@ class Neuralnetwork():
     delta = self.targets - self.y
     for layer in reversed(self.layers):
       delta = layer.backward_pass(delta)
-
+    
     #update weights
     for i in np.arange(0, 3, 2):
       layer = self.layers[i]
@@ -267,6 +272,61 @@ class Neuralnetwork():
       '''(a * layer.d_x.T) + (y * prev_weight_change)''' # is the 'last
       '''prev_weight_change = (a * layer.d_x.T) + (y * prev_weight_change)'''
 
+def numerical_approximation(model, X_train, y_train, X_valid, y_valid, config):
+  # choose minibatch
+  x = X_train[0 : config["batch_size"]]
+  targets = y_train[0 : config["batch_size"]]
+  loss, y_pred = model.forward_pass(x, targets)
+  model.backward_pass()
+  loss = loss / (config['batch_size'] * 10)  # 10 classes
+
+  print(loss)
+  # 1.1031559403913496
+  # 1.1043907379043258
+  a = 1.077788134752671
+  b = 1.0779071056951173
+  approx = (a - b) / (2 * 0.1) * -1
+  # out_bias = model.layers[0].d_b[0]
+  # in2hid_1 = model.layers[0].d_w[0, 0]
+  # in2hid_2 = model.layers[0].d_w[0, 1]
+  hid2out_1 = model.layers[2].d_w[0, 0]
+  hid2out_2 = model.layers[2].d_w[0, 1]
+  grad = hid2out_1 / 10000
+  print(approx, grad)
+  print(approx - grad)
+
+  """
+  output_bias:
+  numerical - 1.1031559403913496
+  backprop - 1.1043907379043258
+  difference - 0.00019159
+
+  hidden bias:
+  numerical - 0.0004665521402780204
+  backprop - 0.00046105
+  difference - 5.5028226e-06
+
+  input -> hidden #1:
+  numerical - -0.0004665521332924971
+  backprop - -0.00015547085702011495
+  difference - 0.0003110812762723822
+
+  input -> hidden #2:
+  numerical - 0.0006169833390679003
+  backprop - -0.00021182621937263678
+  difference - 0.0008288095584405371
+
+  hidden -> output #1:
+  numerical - 0.0005948547122314185
+  backprop - 6.990824645101484e-06
+  difference - 0.000587863887586317z
+
+  hidden -> output #2:
+  numerical - -0.010276905589781116
+  backprop - 9.518257371033264e-06
+  difference - 0.010286423847152148
+  """
+  
 
 def trainer(model, X_train, y_train, X_valid, y_valid, config):
   """
@@ -288,11 +348,10 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
   test_scores = []
 
 
-  #validation loss increase per epoch counter, since
-  #first val_loss is always < infinity
-  c = -1
-
-  for i in range(50):#config["epochs"]):
+  #validation loss increase per epoch counter
+  c = 0
+  
+  for i in range(config["epochs"]):
     np.random.seed(i)
     np.random.shuffle(X_train)
 
@@ -301,7 +360,9 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
 
     '''You should average the loss across all mini batches'''
     #means sum up loss from all mini-batches and divide by num_batches
-    sum = 0
+    sums = 0
+
+    compare = False
 
     num_batches = int(X_train.shape[0] / b_size)
     k=0
@@ -310,8 +371,8 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
       x = X_train[j * b_size: (j+1) * b_size]
       targets = y_train[j * b_size: (j+1) * b_size]
       loss, y_pred = model.forward_pass(x, targets)
-      loss = loss / (len(x) * 10)  # 10 classes
-      sum += loss
+      loss = loss / (config['batch_size'] * 10)  # 10 classes
+      sums += loss
       #xnloss.append(loss)
       model.backward_pass()
       k +=1
@@ -322,9 +383,9 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
       #   print(k, '=============')
 
     # mini-batch done here, take avg of loss
-    avg_loss = sum / num_batches
+    avg_loss = sums / num_batches
     xnloss.append(avg_loss)
-
+    
     ''' epochs loop continues here
      0) perform validation and compute its (val) loss
 
@@ -345,7 +406,14 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
 
     '''TEST ACCURACY''' 
     #if val loss better (less) than prev: calculate test scores
-    if v_loss_norm > val_loss[-1]:
+    if stop and i == stop_count:
+      compare = True
+      last_n = np.array(val_loss[-stop_count:]) > v_loss_norm
+
+
+
+
+    if compare and v_loss_norm > val_loss[-1]:
       print("val loss going up from last time")
       c += 1
       '''insert code for test accu here'''
@@ -380,8 +448,6 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
   #   both_losses.append((val_loss[i], xnloss[i]))
   # print("validation errors: ", [(val_loss[i], xnloss[i]) for i in range(len(xnloss))])
   
-
-
   
 def test(model, X_test, y_test, config):
   """
@@ -409,6 +475,8 @@ if __name__ == "__main__":
   
   X_test, y_test = load_data(test_data_fname)
   trainer(model, X_train, y_train, X_valid, y_valid, config)
+  # uncomment for numerical approximation
+  # numerical_approximation(model, X_train, y_train, X_valid, y_valid, config)
   test_acc = test(model, X_test, y_test, config)
   print(test_acc)
 
