@@ -5,15 +5,16 @@ from matplotlib import pyplot as plt
 
 config = {}
 config['layer_specs'] = [784, 50, 10]  # The length of list denotes number of hidden layers; each element denotes number of neurons in that layer; first element is the size of input layer, last element is the size of output layer.
-config['activation'] = 'sigmoid' # Takes values 'sigmoid', 'tanh' or 'ReLU'; denotes activation function for hidden layers
+config['activation'] = 'tanh' # Takes values 'sigmoid', 'tanh' or 'ReLU'; denotes activation function for hidden layers
 config['batch_size'] = 1000  # Number of training samples per batch to be passed to network
 config['epochs'] = 50  # Number of epochs to train the model
-config['early_stop'] = True  # Implement early stopping or not
+config['early_stop'] = False  # Implement early stopping or not
 config['early_stop_epoch'] = 3  # Number of epochs for which validation loss increases to be counted as overfitting
-config['L2_penalty'] = 0  # Regularization constant
-config['momentum'] = False  # Denotes if momentum is to be applied or not
+config['L2_penalty'] = 0.0  # Regularization constant
+config['momentum'] = True  # Denotes if momentum is to be applied or not
 config['momentum_gamma'] = 0.9  # Denotes the constant 'gamma' in momentum expression
-config['learning_rate'] = 0.0001 # Learning rate of gradient descent algorithm (0.0001 original value)
+config['learning_rate'] = 0.0003 # Learning rate of gradient descent algorithm (0.0001 original value) 0.0003 great for tanh with momentum
+# a = 0.0001 w/ ReLU ===> 0.9662 test score
 
 def softmax(x):
   """
@@ -56,7 +57,7 @@ class Activation:
       return self.tanh(a)
     
     elif self.activation_type == "ReLU":
-      return self.relu(a)
+      return self.ReLU(a)
   
   def backward_pass(self, delta):
     if self.activation_type == "sigmoid":
@@ -118,15 +119,30 @@ class Activation:
 
 class Layer():
   def __init__(self, in_units, out_units):
+    if 'ReLU' in config['activation']:
+      factor = 1 / (in_units + out_units)
+    # elif 'tanh' in config['activation']:
+    #   factor = (2/3)
+    else:
+      factor = 1
+
+    if out_units == 10:
+      e = 0.1
+    else:
+      e = 0
     np.random.seed(42)
-    self.w = np.random.randn(in_units, out_units)  # Weight matrix
+    self.w = np.random.randn(in_units, out_units) * factor  # Weight matrix
     self.b = np.zeros((1, out_units)).astype(np.float32)  # Bias
+    self.b[0:0] += e
     self.x = None  # Save the input to forward_pass in this
     self.a = None  # Save the output of forward pass in this (without activation)
     self.d_x = None  # Save the gradient w.r.t x in this || prod of delta & x ???
     self.d_w = None  # Save the gradient w.r.t w in this || prod of delta & w ???
     self.d_b = None  # Save the gradient w.r.t b in this || prod of delta & b ???
-    self.v = None # save the 'prev' weight change (for momentum)
+    # save the 'prev' weight change (for momentum)
+    self.d_v = np.zeros(self.w.shape)
+
+    self.w_inc = None
 
   def forward_pass(self, x):
     """
@@ -150,17 +166,27 @@ class Layer():
     computes gradient for its weights and the delta to pass to its previous layers.
     """
 
-    # don't think i accounted for bias, maybe it has a large effect
+    a = config['learning_rate']
+    y = config['momentum_gamma']
+    m = config['momentum']
+    l = config['L2_penalty']
 
     # print("shape of delta incoming: ", delta.shape, "shape of x: ", self.x.shape)
     self.d_x = delta.T @ self.x
     # print("SHAPE OF GRADIENT: ", self.d_x.shape)
+
+    #                gradient         momentum
+    self.w_inc = (a * self.d_x.T) + (y * self.d_v) - l * self.w
     
     # saving 
-    #self.v = delta.T @ self.x
+    if m:
+      self.d_v = self.w_inc
+    else:
+      self.d_v = np.zeros(self.w.shape)
 
     # backprop for bias weights
     x_0 = np.ones([len(delta), 1])
+
     self.d_b = delta.T @ x_0
 
     # print("shape of BIAS GRAD: ", self.d_b.shape)
@@ -177,9 +203,12 @@ class Neuralnetwork():
     self.x = None  # Save the input to forward_pass in this
     self.y = None  # Save the output vector of model in this
     self.targets = None  # Save the targets in forward_pass in this variable
-    #self.v = None # 
+    self.d_v = [] # list that stores the last weights change for each layer, (last weight change comes from last minibatch)
     for i in range(len(config['layer_specs']) - 1):
       self.layers.append( Layer(config['layer_specs'][i], config['layer_specs'][i+1]) )
+
+      # self.d_v.append(np.zeros((config['layer_specs'][i], config['layer_specs'][i+1])))
+      
       if i < len(config['layer_specs']) - 2:
         self.layers.append(Activation(config['activation']))  
     
@@ -219,12 +248,6 @@ class Neuralnetwork():
     hint - use previously built functions.
     '''
     a = config['learning_rate']
-    y = config['momentum_gamma']
-    m = config['momentum']
-
-    
-
-
 
     #delta of t - y
     delta = self.targets - self.y
@@ -237,7 +260,7 @@ class Neuralnetwork():
       #first iteration so no 'prev weight change'
       # if iteration == 0:
       #   prev_w_chng = np.zeros(layer.d_x.T.shape)
-      layer.w = layer.w + a * layer.d_x.T #+ (y * prev_w_chng) #updating non-bias weights
+      layer.w = layer.w + layer.w_inc #updating non-bias weights
       # prev_w_chng = a * layer.d_x.T + (y * prev_w_chng)
       layer.b = layer.b + a * layer.d_b.T #updating bias weights
 
@@ -257,15 +280,18 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
   # backprop and update weights
 
   stop_count = config['early_stop_epoch']
+  b_size = config["batch_size"]
+  stop = config['early_stop']
 
   xnloss = []
   val_loss = [float('inf')]
   test_scores = []
 
 
-  #validation loss increase per epoch counter
-  c = 0
-  
+  #validation loss increase per epoch counter, since
+  #first val_loss is always < infinity
+  c = -1
+
   for i in range(50):#config["epochs"]):
     np.random.seed(i)
     np.random.shuffle(X_train)
@@ -277,14 +303,14 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
     #means sum up loss from all mini-batches and divide by num_batches
     sum = 0
 
-    num_batches = int(X_train.shape[0] / config["batch_size"])
+    num_batches = int(X_train.shape[0] / b_size)
     k=0
     for j in range(num_batches):
       # choose minibatch
-      x = X_train[j * config["batch_size"] : (j+1) * config["batch_size"]]
-      targets = y_train[j * config["batch_size"] : (j+1) * config["batch_size"]]
+      x = X_train[j * b_size: (j+1) * b_size]
+      targets = y_train[j * b_size: (j+1) * b_size]
       loss, y_pred = model.forward_pass(x, targets)
-      loss = loss / (config['batch_size'] * 10)  # 10 classes
+      loss = loss / (len(x) * 10)  # 10 classes
       sum += loss
       #xnloss.append(loss)
       model.backward_pass()
@@ -319,19 +345,24 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
 
     '''TEST ACCURACY''' 
     #if val loss better (less) than prev: calculate test scores
-    if v_loss_norm < val_loss[i]:
-      '''insert code for test accu here'''
-      val_loss.append(v_loss_norm)
-    else: #else val loss increased, so increment counter
-      print("val loss greater than last time")
+    if v_loss_norm > val_loss[-1]:
+      print("val loss going up from last time")
       c += 1
+      '''insert code for test accu here'''
+    #   val_loss.append(v_loss_norm)
+    # else: #else val loss increased, so increment counter
+      
+    val_loss.append(v_loss_norm)
+      
 
     
     '''EARLY STOPPING'''
-    if c == stop_count:
+    if stop and c == stop_count:
       print("early stopped at epoch =", i+1)
       break
 
+  print(val_loss[1:3])
+  print(xnloss, len(xnloss), len(val_loss[1:]))
   #outside of epochs loop
   plt.plot(xnloss, label='training loss')
   plt.plot(val_loss[1:], label='validation loss')
@@ -339,11 +370,12 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
   plt.xlabel("epochs")
   plt.ylabel("avg loss for the epoch")
   plt.legend()
-  # plt.savefig('trainVSval_loss.png')
+  plt.savefig('raised_a.png')
   plt.show()
   #firstplot.png is training loss against # of batches, in 1 epoch
   #avgacrossepochs.png is avg training loss of all batches, across 50 epochs
   # both_losses = []
+    
   # for i in range(len(xnloss)):
   #   both_losses.append((val_loss[i], xnloss[i]))
   # print("validation errors: ", [(val_loss[i], xnloss[i]) for i in range(len(xnloss))])
@@ -355,6 +387,13 @@ def test(model, X_test, y_test, config):
   """
   Write code to run the model on the data passed as input and return accuracy.
   """
+  loss, y_pred = model.forward_pass(X_test)
+
+  y_maxVals = np.amax(y_pred, axis=1).reshape(-1, 1)
+  y_1hot = np.where(y_maxVals == y_pred, 1, 0)
+  correct = np.sum(y_test * y_1hot)
+
+  accuracy = correct / len(X_test)
   return accuracy
       
 
@@ -370,6 +409,7 @@ if __name__ == "__main__":
   
   X_test, y_test = load_data(test_data_fname)
   trainer(model, X_train, y_train, X_valid, y_valid, config)
-  # test_acc = test(model, X_test, y_test, config)
+  test_acc = test(model, X_test, y_test, config)
+  print(test_acc)
 
   # print(X_valid.shape, X_train.shape, X_test.shape, y_test.shape)
