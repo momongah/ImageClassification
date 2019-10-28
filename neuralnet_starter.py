@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 
 config = {}
 config['layer_specs'] = [784, 50, 10]  # The length of list denotes number of hidden layers; each element denotes number of neurons in that layer; first element is the size of input layer, last element is the size of output layer.
-config['activation'] = 'sigmoid' # Takes values 'sigmoid', 'tanh' or 'ReLU'; denotes activation function for hidden layers
+config['activation'] = 'tanh' # Takes values 'sigmoid', 'tanh' or 'ReLU'; denotes activation function for hidden layers
 config['batch_size'] = 1000  # Number of training samples per batch to be passed to network
 config['epochs'] = 50  # Number of epochs to train the model
 config['early_stop'] = True  # Implement early stopping or not
@@ -56,7 +56,7 @@ class Activation:
       return self.tanh(a)
     
     elif self.activation_type == "ReLU":
-      return self.relu(a)
+      return self.ReLU(a)
   
   def backward_pass(self, delta):
     if self.activation_type == "sigmoid":
@@ -119,8 +119,14 @@ class Activation:
 class Layer():
   def __init__(self, in_units, out_units):
     np.random.seed(42)
-    self.w = np.random.randn(in_units, out_units)  # Weight matrix
+    # unccomment for 2b, numerical approximation of gradient
+    # if out_units == 10:
+    #   e = -0.1
+    # else:
+    #   e = 0
+    self.w = np.random.randn(in_units, out_units)# Weight matrix
     self.b = np.zeros((1, out_units)).astype(np.float32)  # Bias
+    # self.w[0, 0] += e
     self.x = None  # Save the input to forward_pass in this
     self.a = None  # Save the output of forward pass in this (without activation)
     self.d_x = None  # Save the gradient w.r.t x in this || prod of delta & x ???
@@ -141,7 +147,7 @@ class Layer():
     # print("shape of x: ", x.shape, "shape of x_w_ones: ", x_w_ones.shape)
     # print("shape of w: ", self.w.shape, "shape of w_b: ", w_b.shape, "shape of bias: ", self.b.shape)
     # print("shape of a: ", self.a.shape)
-
+    
     return self.a
   
   def backward_pass(self, delta):
@@ -230,7 +236,7 @@ class Neuralnetwork():
     delta = self.targets - self.y
     for layer in reversed(self.layers):
       delta = layer.backward_pass(delta)
-
+    
     #update weights
     for i in np.arange(0, 3, 2):
       layer = self.layers[i]
@@ -244,6 +250,61 @@ class Neuralnetwork():
       '''(a * layer.d_x.T) + (y * prev_weight_change)''' # is the 'last
       '''prev_weight_change = (a * layer.d_x.T) + (y * prev_weight_change)'''
 
+def numerical_approximation(model, X_train, y_train, X_valid, y_valid, config):
+  # choose minibatch
+  x = X_train[0 : config["batch_size"]]
+  targets = y_train[0 : config["batch_size"]]
+  loss, y_pred = model.forward_pass(x, targets)
+  model.backward_pass()
+  loss = loss / (config['batch_size'] * 10)  # 10 classes
+
+  print(loss)
+  # 1.1031559403913496
+  # 1.1043907379043258
+  a = 1.077788134752671
+  b = 1.0779071056951173
+  approx = (a - b) / (2 * 0.1) * -1
+  # out_bias = model.layers[0].d_b[0]
+  # in2hid_1 = model.layers[0].d_w[0, 0]
+  # in2hid_2 = model.layers[0].d_w[0, 1]
+  hid2out_1 = model.layers[2].d_w[0, 0]
+  hid2out_2 = model.layers[2].d_w[0, 1]
+  grad = hid2out_1 / 10000
+  print(approx, grad)
+  print(approx - grad)
+
+  """
+  output_bias:
+  numerical - 1.1031559403913496
+  backprop - 1.1043907379043258
+  difference - 0.00019159
+
+  hidden bias:
+  numerical - 0.0004665521402780204
+  backprop - 0.00046105
+  difference - 5.5028226e-06
+
+  input -> hidden #1:
+  numerical - -0.0004665521332924971
+  backprop - -0.00015547085702011495
+  difference - 0.0003110812762723822
+
+  input -> hidden #2:
+  numerical - 0.0006169833390679003
+  backprop - -0.00021182621937263678
+  difference - 0.0008288095584405371
+
+  hidden -> output #1:
+  numerical - 0.0005948547122314185
+  backprop - 6.990824645101484e-06
+  difference - 0.000587863887586317z
+
+  hidden -> output #2:
+  numerical - -0.010276905589781116
+  backprop - 9.518257371033264e-06
+  difference - 0.010286423847152148
+  """
+  
 
 def trainer(model, X_train, y_train, X_valid, y_valid, config):
   """
@@ -266,7 +327,7 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
   #validation loss increase per epoch counter
   c = 0
   
-  for i in range(50):#config["epochs"]):
+  for i in range(config["epochs"]):
     np.random.seed(i)
     np.random.shuffle(X_train)
 
@@ -275,7 +336,7 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
 
     '''You should average the loss across all mini batches'''
     #means sum up loss from all mini-batches and divide by num_batches
-    sum = 0
+    sums = 0
 
     num_batches = int(X_train.shape[0] / config["batch_size"])
     k=0
@@ -285,7 +346,7 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
       targets = y_train[j * config["batch_size"] : (j+1) * config["batch_size"]]
       loss, y_pred = model.forward_pass(x, targets)
       loss = loss / (config['batch_size'] * 10)  # 10 classes
-      sum += loss
+      sums += loss
       #xnloss.append(loss)
       model.backward_pass()
       k +=1
@@ -296,9 +357,9 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
       #   print(k, '=============')
 
     # mini-batch done here, take avg of loss
-    avg_loss = sum / num_batches
+    avg_loss = sums / num_batches
     xnloss.append(avg_loss)
-
+    
     ''' epochs loop continues here
      0) perform validation and compute its (val) loss
 
@@ -348,13 +409,12 @@ def trainer(model, X_train, y_train, X_valid, y_valid, config):
   #   both_losses.append((val_loss[i], xnloss[i]))
   # print("validation errors: ", [(val_loss[i], xnloss[i]) for i in range(len(xnloss))])
   
-
-
   
 def test(model, X_test, y_test, config):
   """
   Write code to run the model on the data passed as input and return accuracy.
   """
+  accuracy = 0
   return accuracy
       
 
@@ -370,6 +430,8 @@ if __name__ == "__main__":
   
   X_test, y_test = load_data(test_data_fname)
   trainer(model, X_train, y_train, X_valid, y_valid, config)
+  # uncomment for numerical approximation
+  # numerical_approximation(model, X_train, y_train, X_valid, y_valid, config)
   # test_acc = test(model, X_test, y_test, config)
 
   # print(X_valid.shape, X_train.shape, X_test.shape, y_test.shape)
