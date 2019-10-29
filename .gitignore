@@ -1,1 +1,9 @@
 data/
+
+# python
+*.pyc
+__*
+
+# personal stuff
+.vscode
+tags
