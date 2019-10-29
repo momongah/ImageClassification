@@ -5,5 +5,6 @@ data/
 __*
 
 # personal stuff
-.vscode
+.vscode/
 tags
+.DS_Store
